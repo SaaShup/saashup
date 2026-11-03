@@ -8,6 +8,11 @@ function createRoute(overrides = {}) {
     }),
   };
   const deps = {
+    imagesToKeepValue: (value) => {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return 2;
+      return Math.min(3, Math.max(1, Math.floor(number)));
+    },
     logLine: vi.fn(),
     recreateContainers: vi.fn().mockResolvedValue(true),
     registryWebhookAllowed: vi.fn(() => true),
@@ -39,8 +44,8 @@ function response() {
   };
 }
 
-function request(body = {}, profile = "prod") {
-  return { body, params: { profile }, originalUrl: `/registry-webhook/${profile}/hook-secret` };
+function request(body = {}, profile = "prod", query = {}) {
+  return { body, params: { profile }, query, originalUrl: `/registry-webhook/${profile}/hook-secret` };
 }
 
 describe("registry webhook route helper", () => {
@@ -133,8 +138,38 @@ describe("registry webhook route helper", () => {
       image: "saashup/tile",
       version: "v2.0.0",
       clean_name: false,
+      remove_old_images: true,
+      images_to_keep: 2,
     }));
     expect(deps.selectedProfileConfig).toHaveBeenCalledWith({ profile: "prod" });
+  });
+
+  test("overrides images_to_keep from the webhook query string", async () => {
+    const { deps, handler } = createRoute({
+      selectedProfileConfig: vi.fn(() => ({ tag: "tile" })),
+    });
+
+    handler(request({}, "prod", { images_to_keep: "1" }), response());
+
+    await vi.waitFor(() => expect(deps.recreateContainers).toHaveBeenCalledWith(expect.objectContaining({
+      remove_old_images: true,
+      images_to_keep: 1,
+    })));
+  });
+
+  test("sources images_to_keep from the matching template when no query override is given", async () => {
+    const { deps, handler } = createRoute({
+      templatesForRequest: vi.fn().mockResolvedValue({
+        Tile: { image: "saashup/tile", images_to_keep: 3 },
+      }),
+    });
+
+    handler(request(), response());
+
+    await vi.waitFor(() => expect(deps.recreateContainers).toHaveBeenCalledWith(expect.objectContaining({
+      remove_old_images: true,
+      images_to_keep: 3,
+    })));
   });
 
   test("rejects invalid webhook secrets before starting async work", async () => {

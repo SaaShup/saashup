@@ -9,6 +9,7 @@ function plainObject(value) {
 function createHelpers(overrides = {}) {
   return createTemplateCatalogHelpers({
     maxInstancesValue: (value) => Number(value ?? 1),
+    imagesToKeepValue: (value) => Number(value ?? 2),
     orderInstanceCountForTemplate: () => 2,
     orderTemplateEnabled: (value) => Boolean(value),
     plainObject,

@@ -42,6 +42,7 @@ function createEnroll(overrides = {}) {
     labelMapFromContainer: () => ({}),
     logLine: () => {},
     maxInstancesValue: (value) => Number(value ?? 1),
+    imagesToKeepValue: (value) => Number(value ?? 2),
     NetBoxClient: class {},
     orderInstanceCountForTemplate: () => 0,
     ownerEnvVarName: () => "OWNER",
@@ -110,6 +111,7 @@ describe("api/enroll helpers", () => {
     const helpers = createEnroll({
       selectedProfileConfig: () => ({ enrollment_limit: 4 }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => false,
       readState: () => ({
         templates: {
@@ -125,6 +127,7 @@ describe("api/enroll helpers", () => {
     const maxTemplatesHelpers = createEnroll({
       selectedProfileConfig: () => ({ max_templates: 1 }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => false,
       readState: () => ({
         templates: {
@@ -160,6 +163,7 @@ describe("api/enroll helpers", () => {
       visibleProfileNames: () => ["prod"],
       selectedProfileConfig: () => ({ enrollment_limit: 2 }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => false,
       readState: () => ({
         templates: {
@@ -188,6 +192,7 @@ describe("api/enroll helpers", () => {
         enrollment_limit: profile === "prod" ? 2 : 3,
       }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => true,
       templatesForRequest: async (_req, profile) => ({
         [`${profile}-image`]: {
@@ -236,6 +241,7 @@ describe("api/enroll helpers", () => {
       authUserFromRequest: () => ({}),
       selectedProfileConfig: () => ({ enrollment_limit: 4 }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => false,
       readState: () => ({
         templates: {
@@ -252,6 +258,7 @@ describe("api/enroll helpers", () => {
       authUserFromRequest: () => ({ email: "owner@example.com" }),
       selectedProfileConfig: () => ({ enrollment_limit: 5, netbox: true, token: "token" }),
       maxInstancesValue: (value) => Number(value),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       profileUsesNetBoxTemplates: () => true,
       readState: () => ({ templates: {} }),
       templatesForRequest: async () => ({
@@ -694,6 +701,7 @@ describe("api/order helpers", () => {
       labelMapFromContainer: (container) => container.labels || {},
       logLine: () => {},
       maxInstancesValue: (value) => Number(value ?? 1),
+      imagesToKeepValue: (value) => Number(value ?? 2),
       NetBoxClient: class {
         constructor() { this.list = async () => []; }
       },
