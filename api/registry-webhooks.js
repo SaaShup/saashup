@@ -1,6 +1,7 @@
 const { toLogPayload } = require("../lib/operations");
 
 function registerRegistryWebhookRoutes(app, {
+  imagesToKeepValue,
   logLine,
   recreateContainers,
   registryWebhookAllowed,
@@ -48,6 +49,13 @@ function registerRegistryWebhookRoutes(app, {
     }
   }
 
+  async function webhookImagesToKeep(req, profile, image) {
+    if (req.query.images_to_keep !== undefined) return imagesToKeepValue(req.query.images_to_keep);
+    const templates = await notificationTemplates(req, profile, image);
+    const matching = templates.find(({ template }) => template.images_to_keep !== undefined);
+    return imagesToKeepValue(matching?.template.images_to_keep);
+  }
+
   function webhookImages(events) {
     return events.map((event) => `${event.image}:${event.tag}`).join(",") || "none";
   }
@@ -79,7 +87,8 @@ function registerRegistryWebhookRoutes(app, {
     Promise.resolve()
       .then(async () => {
         for (const event of upgradeEvents) {
-          const ready = await recreateContainers({ ...config, image: event.image, version: event.tag, clean_name: false });
+          const imagesToKeep = await webhookImagesToKeep(req, req.params.profile, event.image);
+          const ready = await recreateContainers({ ...config, image: event.image, version: event.tag, clean_name: false, remove_old_images: true, images_to_keep: imagesToKeep });
           if (ready) await sendWebhookReadyNotifications(req, config, req.params.profile, event);
         }
       })

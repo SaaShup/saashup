@@ -14,7 +14,7 @@ const { createOrderHelpers, registerOrderRoutes } = require("./api/order");
 const { registerRegistryWebhookRoutes } = require("./api/registry-webhooks");
 const { createReportHandlers } = require("./api/reports");
 const { registerSystemRoutes } = require("./api/system");
-const { authUserFromRequest, createAuthHelpers, createPublicImageAccess, maxInstancesValue } = require("./lib/auth");
+const { authUserFromRequest, createAuthHelpers, createPublicImageAccess, imagesToKeepValue, maxInstancesValue } = require("./lib/auth");
 const {
   asArray,
   authRedirectPayloadFromContainer,
@@ -572,6 +572,7 @@ const {
   templatesWithCreatorEmails,
   workflowEntriesFromConfigContext,
 } = createTemplateCatalogHelpers({
+  imagesToKeepValue,
   maxInstancesValue,
   orderInstanceCountForTemplate,
   orderTemplateEnabled,
@@ -991,6 +992,7 @@ registerMetricsMiddleware(app, { metrics });
 
 registerRegistryWebhookRoutes(app, {
   imageNameFromRef,
+  imagesToKeepValue,
   logLine,
   recreateContainers,
   registryWebhookAllowed,
@@ -1026,6 +1028,7 @@ const {
   blockedEnrollmentImages,
   containerEnvValue,
   hostIdQuery,
+  imagesToKeepValue,
   imageKeyFromImageObject,
   imageKeyFromRefAndVersion,
   imageNameFromRef,
@@ -1246,6 +1249,22 @@ registerEnrollRoutes(app, {
   currentEnrollmentUsage,
 });
 
+function imagesSelectedForCleanup(images, keepCountPerHost) {
+  const keepCount = Math.max(0, keepCountPerHost);
+  const byHost = new Map();
+  for (const image of images) {
+    const key = hostName(image);
+    if (!byHost.has(key)) byHost.set(key, []);
+    byHost.get(key).push(image);
+  }
+  const toDelete = [];
+  for (const group of byHost.values()) {
+    const sorted = [...group].sort((a, b) => Number(b.id) - Number(a.id));
+    toDelete.push(...sorted.slice(keepCount));
+  }
+  return toDelete;
+}
+
 async function recreateContainers(data) {
   const client = new NetBoxClient(data);
   const hostFilter = await hostIdQuery(client, data.tag);
@@ -1271,6 +1290,8 @@ async function recreateContainers(data) {
   }
   const removeOldImages = (data.remove_old_images === true || data.remove_old_images === "true" || data.remove_old_images === "on")
     && (!data.oldversion || String(data.oldversion) !== String(data.version));
+  const imagesToKeep = imagesToKeepValue(data.images_to_keep);
+  const imagesPendingDeletion = removeOldImages ? imagesSelectedForCleanup(oldImages, data.oldversion ? 0 : imagesToKeep - 1) : [];
   const recreateOne = async ({ container, source }) => {
     const newImage = await ensureImageOnHost(client, source, data.image, data.version);
     const sourceName = firstValueText(container.name, container.display);
@@ -1318,11 +1339,9 @@ async function recreateContainers(data) {
     failures.forEach((error) => logLine(`RECREATE : host failed ${error?.message || "unknown error"}`));
     throw failures[0];
   }
-  for (const oldImage of oldImages) {
-    if (removeOldImages) {
-      await client.request("DELETE", `/api/plugins/docker/images/${oldImage.id}/`, { expected: [200, 202, 204] });
-      logLine(`RECREATE : removed old image ${data.image}:${firstValueText(oldImage.version, data.oldversion)} from ${hostName(oldImage)}`);
-    }
+  for (const oldImage of imagesPendingDeletion) {
+    await client.request("DELETE", `/api/plugins/docker/images/${oldImage.id}/`, { expected: [200, 202, 204] });
+    logLine(`RECREATE : removed old image ${data.image}:${firstValueText(oldImage.version, data.oldversion)} from ${hostName(oldImage)}`);
   }
   logLine(`RECREATE : finished ${data.image}:${data.oldversion || "all previous versions"} -> ${data.version}`);
   return containerCount > 0 && readyCount === containerCount;

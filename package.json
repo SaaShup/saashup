@@ -1,6 +1,6 @@
 {
     "name": "saashup",
-    "version": "4.0.1",
+    "version": "4.1.0",
     "description": "App to deploy new image to all containers",
     "author": "vincent@saashup.com",
     "homepage": "https://github.com/SaaShup/saashup",

@@ -377,6 +377,10 @@ const profileFieldHelp = {
     title: "Remove old images",
     body: "When enabled, each old image is deleted from its host only after all containers using that old image have recreated successfully.",
   },
+  images_to_keep: {
+    title: "Images to keep",
+    body: "How many image versions to keep per host when a registry webhook upgrades this template (1 to 3, default 2). The oldest images beyond that count are removed once containers recreate successfully. A webhook request can override this with an images_to_keep query string value.",
+  },
   saashup_enabled: {
     title: "Enable template orders",
     body: "When enabled, the template can be requested from the order page. Disable it to keep the template saved but unavailable for orders.",
@@ -446,7 +450,7 @@ const actions = {
     description: "Create and manage reusable instance templates.",
     submitLabel: "Create instance",
     buttonClass: "btn btn-primary",
-    fields: ["config_profile", "network", "traefik", "logging", "max_instances", "registry_webhook_secret", "image", "version", "env_vars", "labels", "ports", "volumes", "binds"],
+    fields: ["config_profile", "network", "traefik", "logging", "max_instances", "images_to_keep", "registry_webhook_secret", "image", "version", "env_vars", "labels", "ports", "volumes", "binds"],
   },
   workflow: {
     endpoint: "",
@@ -518,6 +522,7 @@ const allFieldNames = [
   "domain",
   "tag",
   "max_instances",
+  "images_to_keep",
   "enrollment_limit",
   "owner_env_var",
   "config_profile",
@@ -1693,6 +1698,13 @@ function normalizeMaxInstances(value) {
   return Math.min(100, Math.max(0, Math.floor(number)));
 }
 
+function normalizeImagesToKeep(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 2;
+
+  return Math.min(3, Math.max(1, Math.floor(number)));
+}
+
 function enrollmentLimitValue(profile = {}) {
   return normalizeMaxInstances(profile.enrollment_limit ?? profile.max_templates ?? profile.max_instances);
 }
@@ -1711,6 +1723,10 @@ function normalizeImportedProfiles(profiles = {}) {
 
 function templateMaxInstancesValue(template = {}) {
   return normalizeMaxInstances(template.max_instances);
+}
+
+function templateImagesToKeepValue(template = {}) {
+  return normalizeImagesToKeep(template.images_to_keep);
 }
 
 async function orderLimitForProfile(profile = "") {
@@ -2326,6 +2342,7 @@ function applyProfileToFields(name = currentConfigProfile, { syncNetwork = true 
   setFieldValue("domain", credentials.domain);
   setFieldValue("tag", credentials.tag);
   setFieldValue("max_instances", "1");
+  setFieldValue("images_to_keep", "2");
   setFieldValue("enrollment_limit", credentials.enrollment_limit);
   setFieldValue("owner_env_var", credentials.owner_env_var);
   setFieldValue("cloudflare_filter", credentials.cloudflare_filter);
@@ -4324,7 +4341,7 @@ function registryWebhookHelpBody(body) {
   const templateSegment = template ? encodeURIComponent(template) : "<template>";
   const secretSegment = secret ? `/${encodeURIComponent(secret)}` : "";
   const webhookUrl = `${window.location.origin}/registry-webhook/${profileSegment}/${templateSegment}${secretSegment}`;
-  return `${body}\n\nRegistry webhook URL:\n${webhookUrl}`;
+  return `${body}\n\nRegistry webhook URL:\n${webhookUrl}\n\nAdd ?images_to_keep=1, 2 or 3 to the URL to override this template's "Images to keep" setting for that webhook.`;
 }
 
 function closeProfileHelp() {
@@ -4662,6 +4679,7 @@ function normalizeCreateTemplate(template) {
   normalized.labels = Array.isArray(normalized.labels) ? normalized.labels.map((label) => ({ ...plainObject(label) })) : [];
   normalized.saashup_enabled = checkboxValue(normalized.saashup_enabled, true);
   normalized.max_instances = templateMaxInstancesValue(normalized);
+  normalized.images_to_keep = templateImagesToKeepValue(normalized);
   normalized.log_driver = String(Object.hasOwn(normalized, "log_driver") ? normalized.log_driver : defaultLogDriver).trim();
   normalized.log_driver_options = normalized.log_driver ? templateLogDriverOptions(normalized) : {};
   return applySaashupTemplateLabels(normalized);
@@ -4694,6 +4712,7 @@ function templateLooksLikeTemplate(template) {
     "image",
     "version",
     "max_instances",
+    "images_to_keep",
     "network",
     "log_driver",
     "log_driver_options",
@@ -4726,7 +4745,7 @@ function templateLooksLikeTemplateLegacy(template) {
   if (looksLikeWorkflowRecord(template)) return false;
   if (Object.hasOwn(template, "delete_volumes")) return false;
 
-  const legacyValueKeys = ["image", "source", "config_profile", "profile", "version", "max_instances", "network", "creator_email"];
+  const legacyValueKeys = ["image", "source", "config_profile", "profile", "version", "max_instances", "images_to_keep", "network", "creator_email"];
   return Object.keys(template).some((key) => legacyValueKeys.includes(key));
 }
 
@@ -5189,6 +5208,7 @@ function currentCreateTemplate() {
     all_hosts: existingTemplate.all_hosts ?? false,
     saashup_enabled: existingTemplate.saashup_enabled ?? true,
     max_instances: normalizeMaxInstances(fieldValue("max_instances")),
+    images_to_keep: normalizeImagesToKeep(fieldValue("images_to_keep")),
     registry_webhook_secret: registryWebhookSecretValue(),
     network: fieldValue("network"),
     log_driver: logDriver,
@@ -5231,6 +5251,7 @@ function applyCreateTemplate(template) {
   setFieldValue("all_hosts", template.all_hosts ?? false);
   setFieldValue("saashup_enabled", template.saashup_enabled ?? true);
   setFieldValue("max_instances", templateMaxInstancesValue(template));
+  setFieldValue("images_to_keep", templateImagesToKeepValue(template));
   setFieldValue("registry_webhook_secret", template.registry_webhook_secret || template.dockerhub_webhook_secret || "");
   applyRegistryDefaultSecret();
   templateNetworkOverride = template.network || "";
@@ -6096,6 +6117,7 @@ async function deleteConfig() {
       setFieldValue("domain", "");
       setFieldValue("tag", "");
       setFieldValue("max_instances", "1");
+      setFieldValue("images_to_keep", "2");
       setFieldValue("enrollment_limit", "1");
       setFieldValue("owner_env_var", "SAASHUP_OWNER");
       setFieldValue("cloudflare_filter", true);
@@ -6258,7 +6280,7 @@ function appendCreateTemplateBody(body, template, templateName = "") {
   const instanceName = String(body.get("instance") || template.instance || templateName || "").trim();
   const versionOverride = String(body.get("version") || "").trim();
   const templateKeys = [
-    "network", "log_driver", "log_driver_options", "log_syslog_address", "log_syslog_tag", "traefik", "saashup_enabled", "max_instances", "registry_webhook_secret",
+    "network", "log_driver", "log_driver_options", "log_syslog_address", "log_syslog_tag", "traefik", "saashup_enabled", "max_instances", "images_to_keep", "registry_webhook_secret",
     "image", "version", "var_env_key", "var_env_value", "label_key", "label_value", "port_value",
     "volume_source", "volume_name", "bind_host_path", "bind_container_path", "bind_read_only",
   ];
@@ -6271,6 +6293,7 @@ function appendCreateTemplateBody(body, template, templateName = "") {
   body.set("traefik", template.traefik === false ? "false" : "true");
   body.set("saashup_enabled", template.saashup_enabled === false ? "false" : "true");
   body.set("max_instances", String(templateMaxInstancesValue(template)));
+  body.set("images_to_keep", String(templateImagesToKeepValue(template)));
   body.set("registry_webhook_secret", template.registry_webhook_secret || template.dockerhub_webhook_secret || "");
   body.set("image", template.image || "");
   body.set("version", versionOverride || template.version || "");
@@ -6502,6 +6525,7 @@ async function submitAction(config, submitter) {
   body.set("domain", credentials.domain);
   body.set("tag", credentials.tag);
   body.set("max_instances", String(normalizeMaxInstances(body.get("max_instances"))));
+  if (body.has("images_to_keep")) body.set("images_to_keep", String(normalizeImagesToKeep(body.get("images_to_keep"))));
   body.set("enrollment_limit", String(credentials.enrollment_limit));
   body.set("owner_env_var", credentials.owner_env_var);
   body.set("profile", credentials.profile);
