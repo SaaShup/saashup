@@ -14,6 +14,7 @@ const { createOrderHelpers, registerOrderRoutes } = require("./api/order");
 const { registerRegistryWebhookRoutes } = require("./api/registry-webhooks");
 const { createReportHandlers } = require("./api/reports");
 const { registerSystemRoutes } = require("./api/system");
+const { createUsersHelpers, registerUsersRoutes } = require("./api/users");
 const { authUserFromRequest, createAuthHelpers, createPublicImageAccess, imagesToKeepValue, maxInstancesValue } = require("./lib/auth");
 const {
   asArray,
@@ -1218,6 +1219,37 @@ registerNetBoxRoutes(app, {
 });
 
 const {
+  clearUserLimit,
+  listUsers,
+  setUserLimit,
+  userMaxInstancesOverride,
+} = createUsersHelpers({
+  containerEnvValue,
+  dockerHosts,
+  hostIdQuery,
+  imageNameFromRef,
+  imagePartsFromContainer,
+  labelMapFromContainer,
+  logLine,
+  NetBoxClient,
+  ownerEnvVarName,
+  parseProfiles,
+  plainObject,
+  readState,
+  selectedProfileConfig,
+  templateLabelValue,
+  visibleProfileNames,
+  writeState,
+});
+
+registerUsersRoutes(app, {
+  clearUserLimit,
+  listUsers,
+  requireAdmin,
+  setUserLimit,
+});
+
+const {
   currentUsage,
   validateOrderTemplate,
 } = createOrderHelpers({
@@ -1237,6 +1269,7 @@ const {
   selectedProfileConfig,
   templateEntryForRequest,
   templateLabelValue,
+  userMaxInstancesOverride,
   visibleProfileNames,
   valueText,
 });

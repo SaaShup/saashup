@@ -17,6 +17,7 @@ function createOrderHelpers({
   selectedProfileConfig,
   templateEntryForRequest,
   templateLabelValue,
+  userMaxInstancesOverride = () => null,
   visibleProfileNames = () => [],
   valueText,
 }) {
@@ -83,7 +84,11 @@ function createOrderHelpers({
     const body = plainObject(req.body);
     const requestedTemplate = String(req.query.template || body.order_template || "").trim();
     const template = plainObject((await templateEntryForRequest(req, profile, requestedTemplate))?.template);
-    const max = maxInstancesValue(template.max_instances ?? body.max_instances ?? 1);
+    const creator = String(authUserFromRequest(req).email || authUserFromRequest(req).user || "").trim().toLowerCase();
+    const userOverride = creator && requestedTemplate ? userMaxInstancesOverride(creator, requestedTemplate) : null;
+    const max = userOverride !== null && userOverride !== undefined
+      ? userOverride
+      : maxInstancesValue(template.max_instances ?? body.max_instances ?? 1);
     const visibleInstances = await orderInstancesForUser(req, profile, requestedTemplate);
     const used = visibleInstances.length;
     return {

@@ -965,6 +965,11 @@ h2 {
   border-bottom: 0;
 }
 
+#usersCard .report-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .report-loading-cell {
   height: 64px;
   color: var(--muted);
