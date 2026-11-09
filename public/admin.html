@@ -83,6 +83,11 @@
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 16v-5"></path><path d="M12 16V8"></path><path d="M16 16v-3"></path></svg></span>
           <span class="nav-label">Reports</span>
         </a>
+        <div class="nav-section-label">Customers</div>
+        <a href="#" class="menu nav-item" data-action="users" id="menu_users" title="Customers">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0"></path><circle cx="12" cy="7" r="3"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span>
+          <span class="nav-label">Customers</span>
+        </a>
       </nav>
     </aside>
 
@@ -573,6 +578,37 @@
               <tbody id="reportTableBody">
                 <tr>
                   <td colspan="4">Select a config and refresh the report.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card report-card hidden" id="usersCard">
+          <div class="card-header">
+            <div class="card-title-row">
+              <div>
+                <h3>Customers</h3>
+                <p>Set a per-customer, per-template instance limit that overrides that template's default limit for one account.</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="refreshUsersBtn">Refresh customers</button>
+            </div>
+          </div>
+
+          <div class="report-table-wrap">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Profile</th>
+                  <th>Template</th>
+                  <th>Instance limit</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr>
+                  <td colspan="5">Refresh to load known users.</td>
                 </tr>
               </tbody>
             </table>

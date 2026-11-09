@@ -142,6 +142,9 @@ const reportSummary = document.getElementById("reportSummary");
 const reportTableHead = document.getElementById("reportTableHead");
 const reportTableBody = document.getElementById("reportTableBody");
 const reportViewButtons = Array.from(document.querySelectorAll("[data-report-view]"));
+const usersCard = document.getElementById("usersCard");
+const refreshUsersBtn = document.getElementById("refreshUsersBtn");
+const usersTableBody = document.getElementById("usersTableBody");
 const environmentCard = document.getElementById("environmentCard");
 const environmentSummary = document.getElementById("environmentSummary");
 const environmentList = document.getElementById("environmentList");
@@ -489,6 +492,16 @@ const actions = {
     title: "Image report",
     description: "Review image usage by container count for one config.",
     submitLabel: "Refresh report",
+    buttonClass: "btn btn-primary",
+    fields: [],
+  },
+  users: {
+    endpoint: "/admin/users",
+    method: "get",
+    menu: "menu_users",
+    title: "Customers",
+    description: "Set a per-customer, per-template instance limit that overrides that template's default limit for one account.",
+    submitLabel: "Refresh customers",
     buttonClass: "btn btn-primary",
     fields: [],
   },
@@ -2643,6 +2656,127 @@ async function refreshImageReport() {
   }
 }
 
+function renderUsersTable(rows) {
+  if (!usersTableBody) return;
+
+  if (!rows.length) {
+    usersTableBody.innerHTML = '<tr><td colspan="5">No known customers yet. Customers appear here once they own at least one instance, or once a limit is set for them.</td></tr>';
+    return;
+  }
+
+  const userRowSpans = new Map();
+  rows.forEach((row) => userRowSpans.set(row.user, (userRowSpans.get(row.user) || 0) + 1));
+  const userCellRendered = new Set();
+
+  usersTableBody.innerHTML = rows.map((row) => {
+    const limitable = row.limitable !== false;
+    const hasLimit = row.max_instances !== null && row.max_instances !== undefined;
+    const inputValue = hasLimit ? Number(row.max_instances) : "";
+    const hasDefault = row.template_default_max_instances !== null && row.template_default_max_instances !== undefined;
+    const placeholder = hasDefault ? Number(row.template_default_max_instances) : "e.g. 5";
+    const title = limitable ? "" : ' title="Not created from a saved template - a limit cannot apply here"';
+
+    let userCell = "";
+    if (!userCellRendered.has(row.user)) {
+      userCellRendered.add(row.user);
+      userCell = `<td rowspan="${userRowSpans.get(row.user)}" style="vertical-align: middle; border-right: 1px solid var(--border);">${escapeHtml(row.user)}</td>`;
+    }
+
+    return `
+    <tr data-user-row="${escapeHtml(row.user)}" data-template-row="${escapeHtml(row.template)}">
+      ${userCell}
+      <td>${escapeHtml((row.profiles || []).join(", ") || "-")}</td>
+      <td>${escapeHtml(row.template)} <span class="count-badge" title="${Number(row.instances || 0)} instance(s)">${Number(row.instances || 0)}</span></td>
+      <td>
+        <div class="field" style="width: 90px;">
+          <input type="number" min="0" data-user-limit-input placeholder="${escapeHtml(String(placeholder))}" value="${inputValue}" ${limitable ? "" : "disabled"}${title}>
+        </div>
+      </td>
+      <td>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <button type="button" class="btn btn-primary" data-user-save-limit ${limitable ? "" : "disabled"}>Save</button>
+          <button type="button" class="btn btn-secondary" data-user-clear-limit ${limitable && hasLimit ? "" : "disabled"}>Clear</button>
+        </div>
+      </td>
+    </tr>
+  `;
+  }).join("");
+}
+
+async function saveUserLimit(email, template, value) {
+  const response = await fetch(`/admin/users/${encodeURIComponent(email)}/templates/${encodeURIComponent(template)}/limit`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ max_instances: value }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function clearUserLimit(email, template) {
+  const response = await fetch(`/admin/users/${encodeURIComponent(email)}/templates/${encodeURIComponent(template)}/limit`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function loadUsers({ silent = false } = {}) {
+  if (!usersTableBody || !refreshUsersBtn) return;
+
+  refreshUsersBtn.disabled = true;
+  if (!silent) usersTableBody.innerHTML = '<tr><td colspan="5">Loading customers...</td></tr>';
+
+  try {
+    const response = await fetch("/admin/users", { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    renderUsersTable(Array.isArray(data?.users) ? data.users : []);
+  } catch {
+    if (!silent) usersTableBody.innerHTML = '<tr><td colspan="5">Failed to load customers.</td></tr>';
+    setNotice("Loading customers failed", "error");
+  } finally {
+    refreshUsersBtn.disabled = false;
+  }
+}
+
+refreshUsersBtn?.addEventListener("click", loadUsers);
+
+usersTableBody?.addEventListener("click", async (event) => {
+  const row = event.target.closest("tr[data-user-row]");
+  if (!row) return;
+  const email = row.dataset.userRow;
+  const template = row.dataset.templateRow;
+  const input = row.querySelector("[data-user-limit-input]");
+
+  if (event.target.closest("[data-user-save-limit]")) {
+    const rawValue = input?.value ?? "";
+    if (rawValue.trim() !== "" && Number(rawValue) < 0) {
+      setNotice("Instance limit must be 0 or more", "error");
+      return;
+    }
+    try {
+      await saveUserLimit(email, template, rawValue.trim() === "" ? null : Number(rawValue));
+      setNotice(`Instance limit saved for ${email} (${template})`, "success");
+      loadUsers({ silent: true });
+    } catch {
+      setNotice(`Failed to save the limit for ${email} (${template})`, "error");
+    }
+    return;
+  }
+
+  if (event.target.closest("[data-user-clear-limit]")) {
+    try {
+      await clearUserLimit(email, template);
+      setNotice(`Instance limit cleared for ${email} (${template}) - back to the template's default`, "success");
+      loadUsers({ silent: true });
+    } catch {
+      setNotice(`Failed to clear the limit for ${email} (${template})`, "error");
+    }
+  }
+});
+
 function renderEnvironmentVariables(variables) {
   if (!environmentList || !environmentSummary) return;
 
@@ -3909,7 +4043,7 @@ function setAction(actionName, { skipAutoRefresh = false } = {}) {
   exportConfigBtn?.classList.toggle("hidden", actionName !== "config");
   importConfigBtn?.classList.toggle("hidden", actionName !== "config");
   clearCacheBtn?.classList.toggle("hidden", actionName !== "config");
-  clearBtn?.classList.toggle("hidden", actionName === "config" || actionName === "environment" || actionName === "report" || actionName === "workflow");
+  clearBtn?.classList.toggle("hidden", actionName === "config" || actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users");
   dockerRunBtn?.classList.toggle("hidden", actionName !== "template");
   templateSelect?.classList.toggle("hidden", actionName !== "template");
   if (isCreateFormAction(actionName)) syncTemplateActions();
@@ -3927,10 +4061,12 @@ function setAction(actionName, { skipAutoRefresh = false } = {}) {
   deleteImageBtn?.classList.toggle("hidden", actionName !== "delete");
   refreshInstancesBtn?.classList.toggle("hidden", isCreateFormAction(actionName));
   if (refreshInstancesBtn && isCreateFormAction(actionName)) refreshInstancesBtn.disabled = true;
-  formCard?.classList.toggle("hidden", actionName === "environment" || actionName === "report" || actionName === "workflow");
+  formCard?.classList.toggle("hidden", actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users");
   environmentCard?.classList.toggle("hidden", actionName !== "environment");
   reportCard?.classList.toggle("hidden", actionName !== "report");
   workflowCard?.classList.toggle("hidden", actionName !== "workflow");
+  usersCard?.classList.toggle("hidden", actionName !== "users");
+  if (actionName === "users") loadUsers();
 
   const visibleFields = new Set(config.fields);
 

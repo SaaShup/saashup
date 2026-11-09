@@ -1140,4 +1140,51 @@ describe("api/order helpers", () => {
     });
     expect(Array.isArray(usage.instances)).toBe(true);
   });
+
+  test("currentUsage uses a per-user instance limit instead of the template limit when one is set for the requester", async () => {
+    const helpers = createOrder({
+      authUserFromRequest: () => ({ email: "buyer@example.com" }),
+      hostIdQuery: async () => ({ host_id: "1" }),
+      NetBoxClient: class {
+        constructor() {
+          this.list = async () => [
+            { display: "demo.example.com", image_name: "repo/image", image_version: "v1", labels: { name: "demo", owner: "buyer@example.com" } },
+          ];
+        }
+      },
+      labelMapFromContainer: (container) => container.labels,
+      templateLabelValue: (labels, key) => labels[key] || "",
+      selectedProfileConfig: () => ({ netbox: true, token: "token", tag: "tag" }),
+      templateEntryForRequest: async () => ({ template: { max_instances: 3 } }),
+      isReadyContainer: () => true,
+      isContainerStopped: () => false,
+      valueText: (value) => String(value || ""),
+      imagePartsFromContainer: () => ({ image: "repo/image", version: "v1" }),
+      userMaxInstancesOverride: (email, template) => (email === "buyer@example.com" && template === "demo" ? 1 : null),
+    });
+
+    const usage = await helpers.currentUsage({ body: {}, query: { template: "demo" } }, "prod");
+    expect(usage).toMatchObject({
+      used: 1,
+      max: 1,
+      remaining: 0,
+      reached: true,
+    });
+  });
+
+  test("currentUsage falls back to the template limit when no per-user limit is set for the requester", async () => {
+    const helpers = createOrder({
+      authUserFromRequest: () => ({ email: "buyer@example.com" }),
+      hostIdQuery: async () => ({ host_id: "1" }),
+      NetBoxClient: class {
+        constructor() { this.list = async () => []; }
+      },
+      selectedProfileConfig: () => ({ netbox: true, token: "token", tag: "tag" }),
+      templateEntryForRequest: async () => ({ template: { max_instances: 3 } }),
+      userMaxInstancesOverride: (email, template) => (email === "someone-else@example.com" && template === "demo" ? 1 : null),
+    });
+
+    const usage = await helpers.currentUsage({ body: {}, query: { template: "demo" } }, "prod");
+    expect(usage.max).toBe(3);
+  });
 });
