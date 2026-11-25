@@ -88,6 +88,11 @@
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0"></path><circle cx="12" cy="7" r="3"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span>
           <span class="nav-label">Customers</span>
         </a>
+        <div class="nav-section-label">Help</div>
+        <a href="#" class="menu nav-item" data-action="documentation" id="menu_documentation" title="Documentation">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span>
+          <span class="nav-label">Documentation</span>
+        </a>
       </nav>
     </aside>
 
@@ -115,7 +120,7 @@
 
       <section class="notice" id="notif">Welcome !</section>
 
-      <section class="toolbar">
+      <section class="toolbar" id="toolbar">
         <button type="button" class="btn btn-primary" id="testBtn">Test connection</button>
         <button type="button" class="btn btn-primary hidden" id="testEmailBtn">Test email</button>
         <button type="button" class="btn btn-danger hidden" id="deleteConfigBtn">Delete config</button>
@@ -612,6 +617,267 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div class="card documentation-card hidden" id="documentationCard">
+          <div class="card-header">
+            <div class="card-title-row">
+              <div>
+                <h3>Documentation</h3>
+                <p>Understand the core concepts and the common operations of the admin console.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-layout">
+          <div class="doc-nav" role="tablist" aria-label="Documentation" aria-orientation="vertical">
+            <label class="doc-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+              <input type="search" id="docSearchInput" placeholder="Search documentation…" aria-label="Search documentation">
+            </label>
+            <button type="button" class="doc-nav-item active" data-doc-view="getting-started" role="tab" aria-selected="true">Getting started</button>
+            <button type="button" class="doc-nav-item" data-doc-view="create" role="tab" aria-selected="false">Instance creation</button>
+            <button type="button" class="doc-nav-item" data-doc-view="upgrade" role="tab" aria-selected="false">Upgrading containers</button>
+            <button type="button" class="doc-nav-item" data-doc-view="keycloak" role="tab" aria-selected="false">Keycloak automation</button>
+            <p class="doc-search-empty hidden" id="docSearchEmpty">No results.</p>
+          </div>
+
+          <div class="doc-content">
+          <div class="doc-panel" data-doc-panel="getting-started">
+            <h4>Profile and Template: the two core concepts</h4>
+            <p>
+              A <strong>Profile</strong> (menu "Profiles") is the connection to a NetBox / PaaSBox: think of it as a
+              <strong>manageable datacenter</strong>. It holds the NetBox URL, the token, and the options describing
+              how that datacenter should be driven.
+            </p>
+            <p>
+              Saashup is the <strong>brain</strong>: given a profile, it can automate operations (create, upgrade,
+              operate, delete, refresh hosts…) against the datacenter attached to it.
+            </p>
+            <p>
+              A <strong>Template</strong> (menu "Template") is an image ready to be instantiated: Docker image,
+              version, network, ports, volumes, environment variables, etc. It can be created in two ways:
+            </p>
+            <ul>
+              <li>by filling in the fields of the Template form directly;</li>
+              <li>
+                by importing a <code>docker run</code> command or a <code>docker-compose.yml</code> file — if the
+                compose file describes several services, one template is created automatically for each of them.
+              </li>
+            </ul>
+            <h4>What the Run / Compose import supports</h4>
+            <p>
+              Both importers are simple, best-effort parsers: anything they don't recognize is silently dropped —
+              no error, no warning — so always review the generated template before saving it.
+            </p>
+            <p><strong>Docker run import</strong> reads: the image and tag, <code>--name</code>,
+              <code>--network</code>/<code>--net</code>, <code>-e</code>/<code>--env</code>,
+              <code>-l</code>/<code>--label</code>, <code>-v</code>/<code>--volume</code> and <code>--mount</code>
+              (bind mounts and named volumes), <code>--log-driver</code>/<code>--log-opt</code>. Only the
+              <strong>first</strong> <code>-p</code>/<code>--publish</code> flag is kept if there are several.
+              Everything else (<code>--restart</code>, <code>--hostname</code>, <code>--user</code>,
+              <code>--workdir</code>, <code>--entrypoint</code>, <code>--pull</code>, <code>--env-file</code>,
+              <code>--add-host</code>, <code>--dns</code>, and any other flag) is read but has no effect on the
+              template.
+            </p>
+            <p><strong>Docker Compose import</strong> reads, per service: <code>image</code>,
+              <code>container_name</code>, <code>networks</code> (name of the first network only),
+              <code>environment</code>/<code>env</code>, <code>labels</code>, <code>ports</code>,
+              <code>volumes</code> (bind and named volumes, short syntax) and <code>logging</code>. One template
+              is created per service, in the order they appear in the file, and that order is also what the
+              Workflow feature replays.
+            </p>
+            <p>
+              The following are <strong>not supported</strong> and are always ignored: <code>depends_on</code>
+              (including <code>condition:</code> such as <code>service_completed_successfully</code> — there is no
+              "run once before the others" / migration-style ordering), <code>healthcheck</code>, top-level
+              <code>networks:</code> definitions (so a network's <code>internal: true</code> or any other
+              network-level option is never read, only the network name used in a service), and top-level
+              <code>volumes:</code> definitions (so <code>external: true</code> has no special handling — an
+              external volume is imported the same as any other named volume, just its name and mount path).
+              Private registry images (e.g. <code>ghcr.io/org/image:tag</code>) are parsed correctly as the image
+              reference, but registry credentials are never part of the import — they are configured separately,
+              at the PaaSBox/NetBox host level.
+            </p>
+            <p>
+              Once a profile and at least one template are ready, the operations (Create, Upgrade, Operate,
+              Delete…) become available for that profile/template pair.
+            </p>
+            <h4>The profile tag</h4>
+            <p>
+              The <strong>tag</strong> set on the profile (field "tag") must be present on the Docker hosts on the
+              PaaSBox / NetBox side. It is used to scope exactly which machines this application should be managed
+              on: that same tag is what selects the hosts during upgrades and determines the order in which
+              instances are created.
+            </p>
+            <h4>Branding</h4>
+            <p>
+              A profile can be attached to a <strong>Branding</strong> (field "Branding" on the Profiles form,
+              managed from the "Branding" menu), so the customer-facing Order, Enroll and Catalog pages for that
+              profile look like part of the customer's own site rather than a generic Saashup page.
+            </p>
+            <p>
+              A branding lets you set a logo, a primary and secondary color, a background image, a welcome text,
+              a website link and a footer text. One branding can be reused across several profiles, and combined
+              with the "Hide navigation" embed option described above, it lets a Saashup customer give their own
+              end-users an order experience that fully matches their own style.
+            </p>
+          </div>
+
+          <div class="doc-panel hidden" data-doc-panel="create">
+            <h4>Instance creation by customers</h4>
+            <p>
+              Customers don't see the admin console at all — they create their instances from the public
+              <strong>Order</strong> page, landing on a link for one specific, pre-created template. They don't
+              pick a template, an instance name or a DNS name themselves: the page only asks "Do you want to
+              install an instance?" and, once confirmed, Saashup generates the container name and DNS name
+              automatically and provisions the container on a host of the datacenter covered by the tag of the
+              profile attached to that template.
+            </p>
+            <p>
+              The "Create" menu in the admin console exposes the full form (template, instance name, DNS name,
+              image, version…) for an admin to create an instance directly, without going through the Order page.
+            </p>
+            <h4>Instance limits</h4>
+            <p>
+              Every template has a <strong>max instances</strong> limit (field "max_instances" on the Template
+              form). It is the default cap on the number of instances any customer can create from that template.
+            </p>
+            <p>
+              Once a customer has created their first instance, they appear in the "Customers" menu, where that
+              default can be <strong>overridden per user</strong> for a given template. When a per-user limit is
+              set, it replaces the template default for that customer only — the rest of your customers keep using
+              the template's default limit.
+            </p>
+            <p>
+              Setting a limit (template default or per-user override) to <strong>0 blocks any further instance
+              creation</strong> for that template right away, even if the customer has no instance yet. It does not
+              remove or stop instances that already exist above the new limit — it only prevents new ones from
+              being created.
+            </p>
+            <h4>Embedding the order link on your own site</h4>
+            <p>
+              Saashup's own customers (the SaaS owner using this console) can let their end-users order an
+              instance directly from their own website. From the "Enroll" page's templates list, click the copy
+              icon ("Copy order button HTML") next to a template to open the order button dialog: it shows a live
+              preview and a ready-to-paste <code>&lt;a&gt;</code> HTML snippet linking to that template's order
+              page (<code>/order?template=&lt;name&gt;</code>), which you can paste into your own site to let
+              visitors order the instance there.
+            </p>
+            <p>
+              The dialog has a <strong>"Hide navigation"</strong> option: enabling it adds
+              <code>&amp;navigation=false</code> to the generated link, which hides Saashup's own menu and logo on
+              the order page so it blends in as if it were part of your site. This choice is remembered for the
+              visitor's browser session, so it stays hidden across the order/enroll/catalog pages they visit next,
+              even without the parameter on later links.
+            </p>
+            <h4>Hiding the order page</h4>
+            <p>
+              A profile's <strong>"Visible"</strong> toggle (in the Profiles form) controls whether that profile
+              shows up on the public order/catalog pages. Turning it off hides the profile — and its templates —
+              from those public pages entirely, so customers can no longer order instances from it themselves;
+              only an admin can still create instances for that profile from the admin console's "Create" menu.
+            </p>
+          </div>
+
+          <div class="doc-panel hidden" data-doc-panel="keycloak">
+            <h4>Why redirect URLs matter</h4>
+            <p>
+              When an application logs in through Keycloak (OIDC/SSO), Keycloak only redirects the browser back to
+              an instance's URL after login if that exact URL is listed as an <strong>allowed redirect URI</strong>
+              on the corresponding Keycloak client. If an instance's URL is missing from that list, login will
+              <strong>fail with an error</strong> on Keycloak's side (typically something like "Invalid
+              parameter: redirect_uri") even though everything else is correctly configured — the application
+              itself, the instance, and the reverse proxy. In other words: for a customer to be able to log in,
+              the instance's URL must be correct and present among the client's allowed redirect URIs in
+              Keycloak.
+            </p>
+            <p>
+              Keeping that list in sync by hand for every instance you create or delete is tedious and error
+              prone, so Saashup can automate it.
+            </p>
+            <h4>Keycloak is provided by Saashup</h4>
+            <p>
+              The Keycloak server used for this automation is <strong>provided by Saashup</strong>. To use it, it
+              must be linked from Paashup: <strong>Paashup → Keycloak → Servers</strong>. This automation is
+              therefore only available when Paashup is used as the datacenter backing a profile — it is
+              <strong>not available when the profile is backed by NetBox</strong>.
+            </p>
+            <h4>Keycloak automation via labels</h4>
+            <p>
+              A template can be configured so that Saashup automatically registers the instance's URL as an
+              allowed OIDC redirect (callback) URL — and, on removal, unregisters it — on a Keycloak realm/client.
+              This avoids having to manually edit the Keycloak client configuration every time an instance is
+              created or deleted.
+            </p>
+            <p>
+              This is driven by Docker labels set on the template (the same place you set Traefik or logging
+              labels):
+            </p>
+            <ul>
+              <li><code>saashup.auth.callback.path</code> — required, it is what triggers the automation (e.g. <code>/api/auth/callback</code>). Without this label, nothing is registered in Keycloak.</li>
+              <li><code>saashup.auth.realm</code> — the Keycloak realm to register the redirect URI on.</li>
+              <li><code>saashup.auth.client</code> — the Keycloak client id to update.</li>
+              <li><code>saashup.auth.postlogout.path</code> — optional, a post-logout redirect path (e.g. <code>/logout</code>) registered alongside the callback.</li>
+            </ul>
+            <p>
+              The instance's public URL is derived from its Traefik router labels (host and path prefix), combined
+              with the callback/post-logout paths above. Saashup registers these URLs in Keycloak when the instance
+              is created, and removes them when the instance is deleted.
+            </p>
+          </div>
+
+          <div class="doc-panel hidden" data-doc-panel="upgrade">
+            <h4>Upgrading via the UI</h4>
+            <p>
+              From the "Upgrade" menu, pick the <strong>profile</strong>, the <strong>image</strong> and the
+              <strong>tag</strong> (the new version) to deploy. The old tag ("oldversion") is optional: if you
+              leave it out, every existing version of that image is migrated to the new one, with no need to list
+              them one by one.
+            </p>
+            <p>
+              Don't forget the registry prefix on the image name when it isn't Docker Hub — for example
+              <code>ghcr.io/org/image</code> for GitHub Container Registry, instead of just <code>org/image</code>
+              which is assumed to be on Docker Hub. If the image comes from a private registry, the credentials to
+              pull it must be configured on PaaSBox first, otherwise the upgrade will fail to pull the new tag.
+            </p>
+            <p>
+              Once started, the upgrade is applied on <strong>every host carrying the profile's tag</strong>: on
+              each of them, the new image is pulled, the container is recreated from it, and Saashup waits for the
+              recreated container to be confirmed <strong>running</strong> before moving on.
+            </p>
+            <h4>Upgrading via webhook</h4>
+            <p>
+              An upgrade can also be triggered through a <strong>webhook</strong>, for example straight from a CI
+              pipeline (GitHub Actions) when a tag is published. The webhook URL looks like:
+            </p>
+            <pre><code>https://your-domain.example/registry-webhook/&lt;config-profile&gt;
+https://your-domain.example/registry-webhook/&lt;config-profile&gt;/&lt;template&gt;/&lt;secret&gt;
+https://your-domain.example/registry-webhook/&lt;config-profile&gt;?secret=&lt;secret&gt;</code></pre>
+            <p>
+              As an example, this repo's <code>.github/workflows/publish.yml</code> workflow already triggers an
+              upgrade webhook after every tag publication (a <code>push</code> on a semver tag). It can be adapted
+              to notify several webhooks at once by storing the URLs in a <strong><code>WEBHOOK_URLS</code></strong>
+              secret (one full URL per line) and looping over them when the tag is published:
+            </p>
+            <pre><code># WEBHOOK_URLS secret, one full URL per line:
+# https://customer-a.example/registry-webhook/profile-a
+# https://customer-b.example/registry-webhook/profile-b/template-b/secret-b
+
+- name: Notify upgrade webhooks
+  env:
+    WEBHOOK_URLS: ${{ secrets.WEBHOOK_URLS }}
+    TAG: ${{ github.ref_name }}
+  run: |
+    while IFS= read -r url; do
+      [ -z "$url" ] && continue
+      curl -fsS -X POST "$url" \
+        -H "Content-Type: application/json" \
+        -d "{\"repository\":{\"repo_name\":\"$IMAGE\"},\"push_data\":{\"tag\":\"v${TAG#v}\"}}"
+    done <<< "$WEBHOOK_URLS"</code></pre>
+          </div>
+          </div>
           </div>
         </div>
 

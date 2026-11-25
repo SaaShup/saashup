@@ -629,12 +629,14 @@ test("report menu shows image usage for one config", async ({ page }) => {
     "Workflows",
     "Reports",
     "Customers",
+    "Documentation",
   ]);
   await expect(page.locator(".sidebar .nav-section-label")).toHaveText([
     "Settings",
     "Operations",
     "Tools",
     "Customers",
+    "Help",
   ]);
   await page.route("**/report/images?**", async (route) => {
     const url = new URL(route.request().url());
