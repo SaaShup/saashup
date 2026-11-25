@@ -115,6 +115,7 @@ const oldVersionOptions = document.getElementById("oldVersionOptions");
 const restartVersionOptions = document.getElementById("restartVersionOptions");
 const refreshImagesBtn = document.getElementById("refreshImagesBtn");
 const logsCard = document.getElementById("logsCard");
+const toolbar = document.getElementById("toolbar");
 const logsFullscreenBtn = document.getElementById("logsFullscreenBtn");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
 const configProfileSelect = document.getElementById("config_profile");
@@ -145,6 +146,12 @@ const reportViewButtons = Array.from(document.querySelectorAll("[data-report-vie
 const usersCard = document.getElementById("usersCard");
 const refreshUsersBtn = document.getElementById("refreshUsersBtn");
 const usersTableBody = document.getElementById("usersTableBody");
+const documentationCard = document.getElementById("documentationCard");
+const docViewButtons = Array.from(document.querySelectorAll("[data-doc-view]"));
+const docPanels = Array.from(document.querySelectorAll("[data-doc-panel]"));
+const docSearchInput = document.getElementById("docSearchInput");
+const docSearchEmpty = document.getElementById("docSearchEmpty");
+const docPanelOriginalHtml = new Map();
 const environmentCard = document.getElementById("environmentCard");
 const environmentSummary = document.getElementById("environmentSummary");
 const environmentList = document.getElementById("environmentList");
@@ -502,6 +509,16 @@ const actions = {
     title: "Customers",
     description: "Set a per-customer, per-template instance limit that overrides that template's default limit for one account.",
     submitLabel: "Refresh customers",
+    buttonClass: "btn btn-primary",
+    fields: [],
+  },
+  documentation: {
+    endpoint: "",
+    method: "get",
+    menu: "menu_documentation",
+    title: "Documentation",
+    description: "Comprendre les profils, les templates et les opérations de la console admin.",
+    submitLabel: "",
     buttonClass: "btn btn-primary",
     fields: [],
   },
@@ -2619,6 +2636,73 @@ function setReportView(view) {
   if (lastReportData) renderReportTable(lastReportData);
 }
 
+function setDocView(view) {
+  docViewButtons.forEach((button) => {
+    const active = button.dataset.docView === view;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  docPanels.forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.docPanel !== view);
+  });
+}
+
+function highlightDocPanel(panel, needle) {
+  if (!docPanelOriginalHtml.has(panel)) docPanelOriginalHtml.set(panel, panel.innerHTML);
+  panel.innerHTML = docPanelOriginalHtml.get(panel);
+  if (!needle) return;
+
+  const walker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) textNodes.push(node);
+
+  textNodes.forEach((textNode) => {
+    const text = textNode.textContent;
+    const lowerText = text.toLowerCase();
+    let index = lowerText.indexOf(needle);
+    if (index === -1) return;
+
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    while (index !== -1) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex, index)));
+      const mark = document.createElement("mark");
+      mark.className = "doc-highlight";
+      mark.textContent = text.slice(index, index + needle.length);
+      fragment.appendChild(mark);
+      lastIndex = index + needle.length;
+      index = lowerText.indexOf(needle, lastIndex);
+    }
+    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    textNode.parentNode.replaceChild(fragment, textNode);
+  });
+}
+
+function filterDocSearch(query) {
+  const needle = query.trim().toLowerCase();
+  let visibleCount = 0;
+  let firstVisible = null;
+
+  docViewButtons.forEach((button) => {
+    const panel = docPanels.find((item) => item.dataset.docPanel === button.dataset.docView);
+    const matches = !needle || panel?.textContent.toLowerCase().includes(needle) || button.textContent.toLowerCase().includes(needle);
+    button.classList.toggle("hidden", !matches);
+    if (matches) {
+      visibleCount += 1;
+      if (!firstVisible) firstVisible = button.dataset.docView;
+    }
+  });
+
+  docSearchEmpty?.classList.toggle("hidden", visibleCount !== 0);
+  docPanels.forEach((panel) => highlightDocPanel(panel, needle));
+
+  const activeButton = docViewButtons.find((button) => button.classList.contains("active"));
+  if (firstVisible && (!activeButton || activeButton.classList.contains("hidden"))) {
+    setDocView(firstVisible);
+  }
+}
+
 async function refreshImageReport() {
   if (!reportProfileSelect || !refreshReportBtn) return;
 
@@ -4028,7 +4112,7 @@ function setAction(actionName, { skipAutoRefresh = false } = {}) {
   if (formDescription) formDescription.textContent = config.description;
   submitBtn.textContent = isEnrollPage && actionName === "create" ? "Enroll image" : config.submitLabel;
   submitBtn.className = config.buttonClass;
-  submitBtn.classList.toggle("hidden", actionName === "delete" || actionName === "template" || enrollSubmitInProgress);
+  submitBtn.classList.toggle("hidden", actionName === "delete" || actionName === "template" || actionName === "documentation" || enrollSubmitInProgress);
   submitBtn.hidden = Boolean(enrollSubmitInProgress);
   submitBtn.style.display = enrollSubmitInProgress ? "none" : "";
   submitBtn.name = actionName === "restart" ? "restart_mode" : "";
@@ -4043,7 +4127,7 @@ function setAction(actionName, { skipAutoRefresh = false } = {}) {
   exportConfigBtn?.classList.toggle("hidden", actionName !== "config");
   importConfigBtn?.classList.toggle("hidden", actionName !== "config");
   clearCacheBtn?.classList.toggle("hidden", actionName !== "config");
-  clearBtn?.classList.toggle("hidden", actionName === "config" || actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users");
+  clearBtn?.classList.toggle("hidden", actionName === "config" || actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users" || actionName === "documentation");
   dockerRunBtn?.classList.toggle("hidden", actionName !== "template");
   templateSelect?.classList.toggle("hidden", actionName !== "template");
   if (isCreateFormAction(actionName)) syncTemplateActions();
@@ -4061,11 +4145,15 @@ function setAction(actionName, { skipAutoRefresh = false } = {}) {
   deleteImageBtn?.classList.toggle("hidden", actionName !== "delete");
   refreshInstancesBtn?.classList.toggle("hidden", isCreateFormAction(actionName));
   if (refreshInstancesBtn && isCreateFormAction(actionName)) refreshInstancesBtn.disabled = true;
-  formCard?.classList.toggle("hidden", actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users");
+  formCard?.classList.toggle("hidden", actionName === "environment" || actionName === "report" || actionName === "workflow" || actionName === "users" || actionName === "documentation");
   environmentCard?.classList.toggle("hidden", actionName !== "environment");
   reportCard?.classList.toggle("hidden", actionName !== "report");
   workflowCard?.classList.toggle("hidden", actionName !== "workflow");
   usersCard?.classList.toggle("hidden", actionName !== "users");
+  documentationCard?.classList.toggle("hidden", actionName !== "documentation");
+  testBtn?.classList.toggle("hidden", actionName === "documentation");
+  logsCard?.classList.toggle("hidden", actionName === "documentation");
+  toolbar?.classList.toggle("hidden", actionName === "documentation");
   if (actionName === "users") loadUsers();
 
   const visibleFields = new Set(config.fields);
@@ -7532,6 +7620,10 @@ deleteWorkflowBtn?.addEventListener("click", deleteWorkflow);
 reportViewButtons.forEach((button) => {
   button.addEventListener("click", () => setReportView(button.dataset.reportView));
 });
+docViewButtons.forEach((button) => {
+  button.addEventListener("click", () => setDocView(button.dataset.docView));
+});
+docSearchInput?.addEventListener("input", () => filterDocSearch(docSearchInput.value));
 templateSelect?.addEventListener("change", () => {
   if (createTemplateSelect) createTemplateSelect.value = templateSelect.value;
   syncTemplateActions();

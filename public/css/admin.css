@@ -564,10 +564,159 @@ h2 {
 .environment-card,
 .report-card,
 .workflow-card,
+.documentation-card,
 .logs-card {
   padding: 24px;
   height: 100%;
   min-height: 480px;
+}
+
+.documentation-card {
+  grid-column: 1 / -1;
+  overflow-y: auto;
+}
+
+.doc-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.doc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 220px;
+  position: sticky;
+  top: 0;
+}
+
+.doc-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--button-soft);
+  color: var(--muted);
+}
+
+.doc-search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doc-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.doc-search input:focus {
+  outline: none;
+}
+
+.doc-search-empty {
+  margin: 8px 2px 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.doc-nav-item {
+  text-align: left;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--button-soft-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doc-nav-item:hover {
+  background: var(--button-soft);
+}
+
+.doc-nav-item.active {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.doc-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.doc-panel {
+  padding: 20px 24px 4px;
+  background: var(--panel);
+  border-radius: 16px;
+}
+
+.doc-panel h4 {
+  margin: 28px 0 10px;
+  font-size: 1.05rem;
+}
+
+.doc-panel h4:first-child {
+  margin-top: 0;
+}
+
+.doc-panel p,
+.doc-panel ul {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+
+.doc-panel ul {
+  padding-left: 22px;
+}
+
+.doc-panel li {
+  margin-bottom: 6px;
+}
+
+.doc-panel code {
+  background: var(--button-soft);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85em;
+}
+
+.doc-panel pre {
+  background: var(--button-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+
+.doc-panel pre code {
+  background: none;
+  padding: 0;
+}
+
+.doc-highlight {
+  background: var(--primary);
+  color: #ffffff;
+  border-radius: 3px;
+  padding: 0 2px;
 }
 
 .card-header {
@@ -1863,6 +2012,17 @@ input[type="checkbox"]:disabled {
 @media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+
+  .doc-layout {
+    flex-direction: column;
+  }
+
+  .doc-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+    width: 100%;
   }
 
   .admin-menu-toggle {
